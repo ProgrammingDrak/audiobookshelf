@@ -4,7 +4,7 @@ name: abs-frontend-drake
 services:
   abs-frontend-drake:
     container_name: abs-frontend-drake
-    image: ghcr.io/programmingdrak/audiobookshelf-frontend@sha256:868d38b34f809d75c18f07bb9d24d09df0f77f360c68fd898cdc607b9533c510
+    image: ghcr.io/programmingdrak/audiobookshelf-frontend@sha256:d37abda0550fc387072e652213ea68377ba2f28ced95cf75d6754257015080ec
     user: "1000:1000"
     init: true
     read_only: true
