@@ -1,0 +1,78 @@
+name: Publish approved tested frontend
+
+on:
+  push:
+    branches: [frontend-gateway]
+    paths: ['.github/workflows/publish-tested-frontend.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish-abs-frontend
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.repository == 'ProgrammingDrak/audiobookshelf'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      actions: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/programmingdrak/audiobookshelf-frontend
+      REVISION: f99e6a6663bcb3683721bb71a43a63b0c949ccfd
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Require successful native platform tests at the selected revision
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/ProgrammingDrak/audiobookshelf/actions/runs/38414195728 > run.json
+          python3 - <<'PY'
+          import json
+          run = json.load(open('run.json'))
+          assert run['conclusion'] == 'success' and run['head_sha'] == 'e18f41e2cf753c64d6bc526c6bd60ff31d0c055d'
+          assert run['event'] == 'pull_request'
+          PY
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          github-token: ${{ github.token }}
+          run-id: 38414195728
+          pattern: abs-frontend-docker-*-${{ env.REVISION }}
+          merge-multiple: true
+          path: tested-images
+      - name: Validate archives, code-only image contents, and corresponding GPL source
+        run: python3 frontend-gateway/docker/audit-publish.py tested-images "$REVISION"
+      - name: Publish the exact tested images using an ephemeral workflow token
+        env:
+          REGISTRY_TOKEN: ${{ github.token }}
+        run: |
+          printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io -u ProgrammingDrak --password-stdin
+          for arch in amd64 arm64; do
+            image_id=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["image_id"])' "tested-images/docker-image-${arch}.json")
+            target="${IMAGE}:frontend-${REVISION}-${arch}"
+            if docker manifest inspect "$target" >/dev/null 2>&1; then
+              echo "Immutable tag already exists; refusing to replace it."
+              exit 1
+            fi
+            docker tag "$image_id" "$target"
+            docker push "$target"
+          done
+          target="${IMAGE}:frontend-${REVISION}"
+          if docker manifest inspect "$target" >/dev/null 2>&1; then
+            echo "Immutable index already exists; refusing to replace it."
+            exit 1
+          fi
+          docker manifest create "$target" "${target}-amd64" "${target}-arm64"
+          docker manifest push "$target" | tee published-digest.txt
+          docker logout ghcr.io
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: published-frontend-digest
+          path: published-digest.txt
+          retention-days: 7
