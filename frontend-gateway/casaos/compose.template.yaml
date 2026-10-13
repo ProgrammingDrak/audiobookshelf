@@ -3,6 +3,7 @@
 name: abs-frontend-drake
 services:
   abs-frontend-drake:
+    container_name: abs-frontend-drake
     image: ghcr.io/programmingdrak/audiobookshelf-frontend@sha256:RELEASE_DIGEST
     user: "1000:1000"
     init: true
@@ -16,6 +17,8 @@ services:
       resources:
         limits:
           memory: "256M"
+          cpus: "1.0"
+          pids: 128
     network_mode: bridge
     restart: unless-stopped
     environment:
