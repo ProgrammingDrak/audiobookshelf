@@ -1,0 +1,10 @@
+[Unit]
+Description=Pull and validate approved Audiobookshelf frontend release
+
+[Service]
+Type=oneshot
+EnvironmentFile=%h/.config/abs-frontend/runtime.env
+ExecStart=/usr/bin/node %h/.local/share/abs-frontend/update.mjs
+NoNewPrivileges=true
+UMask=0077
+TimeoutStartSec=300

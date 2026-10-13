@@ -1,0 +1,12 @@
+[Unit]
+Description=Check approved frontend release channel every five minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+RandomizedDelaySec=30
+Persistent=true
+Unit=abs-frontend-update.service
+
+[Install]
+WantedBy=timers.target

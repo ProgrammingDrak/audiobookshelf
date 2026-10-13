@@ -1,0 +1,77 @@
+name: Frontend gateway bundle
+
+on:
+  pull_request:
+    paths: ['client/**', 'frontend-gateway/**', '.github/workflows/frontend-gateway.yml']
+  push:
+    branches: [master]
+    paths: ['client/**', 'frontend-gateway/**', '.github/workflows/frontend-gateway.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: frontend-gateway-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bundle:
+    if: github.repository == 'ProgrammingDrak/audiobookshelf'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24.13.1'
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - name: Install locked client dependencies
+        working-directory: client
+        env:
+          CYPRESS_INSTALL_BINARY: '0'
+        run: npm ci --ignore-scripts
+      - name: Verify gateway and rollback against mock backend
+        run: node --test frontend-gateway/test/*.test.mjs
+      - name: Generate stock frontend
+        working-directory: client
+        run: npm run generate
+      - name: Bundle exact revision with GPL source
+        run: node frontend-gateway/bundle.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: abs-frontend-${{ github.sha }}
+          path: |
+            frontend-gateway/out/abs-frontend.tar.gz
+            frontend-gateway/out/SHA256SUMS
+          retention-days: 7
+
+  release:
+    # Set only after repository-owner approval; draft PRs cannot publish releases.
+    if: github.ref == 'refs/heads/master' && github.event_name != 'pull_request' && vars.FRONTEND_RELEASES_ENABLED == 'true'
+    needs: bundle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: abs-frontend-${{ github.sha }}
+          path: bundle
+      - name: Publish versioned frontend release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          REVISION: ${{ github.sha }}
+        run: |
+          tag="frontend-${REVISION}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release already exists; refusing to replace immutable assets."
+            exit 0
+          fi
+          gh release create "$tag" bundle/abs-frontend.tar.gz bundle/SHA256SUMS \
+            --target "$REVISION" --latest --title "ABS frontend ${REVISION}" \
+            --notes "Frontend-only gateway. Exact source and GPL license included. Backend integration and host installation require separate approval."
