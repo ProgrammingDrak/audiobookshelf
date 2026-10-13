@@ -151,12 +151,16 @@ test('readiness fails on wrong/uninitialized backend and reports versioned build
   assert.deepEqual((await request('/readyz')).json, { ok: true, revision: 'test-revision', backendVersion: '2.37.1' })
   backend.version = 'older'; assert.equal((await request('/readyz')).status, 503)
   backend.version = '2.37.1'; backend.initialized = false; assert.equal((await request('/readyz')).status, 503)
+  backend.initialized = true; config.clientVersion = '99.0.0'; assert.equal((await request('/readyz')).json.error, 'client_backend_version_mismatch')
+  config.clientVersion = '2.37.1'
   backend.initialized = true; config.expectedVersion = undefined; assert.equal((await request('/readyz')).json.error, 'backend_version_unconfirmed')
   assert.equal((await request('/healthz')).status, 200)
 })
 
 test('configuration refuses non-loopback listener and embedded upstream credentials', () => {
   assert.throws(() => configuration({ HOST: '0.0.0.0' }), /loopback/)
+  assert.throws(() => configuration({ HOST: '0.0.0.0', CONTAINER_MODE: '1' }, false), /loopback/)
+  assert.equal(configuration({ HOST: '0.0.0.0', CONTAINER_MODE: '1' }, true).host, '0.0.0.0')
   assert.throws(() => configuration({ ABS_UPSTREAM: 'http://user:secret@localhost' }), /credential-free/)
   assert.throws(() => configuration({ ABS_UPSTREAM: 'http://localhost/other' }), /credential-free/)
 })
@@ -168,7 +172,7 @@ test('versioned gateway starts through the current-release symlink used by host 
   const release = path.join(root, 'releases', revision)
   await mkdir(path.join(release, 'frontend-gateway'), { recursive: true })
   await cp(new URL('../server.mjs', import.meta.url), path.join(release, 'frontend-gateway/server.mjs'))
-  await writeFile(path.join(release, 'release.json'), JSON.stringify({ revision }))
+  await writeFile(path.join(release, 'release.json'), JSON.stringify({ revision, clientVersion: '2.37.1' }))
   await symlink(`releases/${revision}`, path.join(root, 'current'))
   const reservation = http.createServer(); reservation.listen(0, '127.0.0.1'); await once(reservation, 'listening')
   const port = reservation.address().port

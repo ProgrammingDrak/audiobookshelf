@@ -1,19 +1,19 @@
-# Proposed separate Audiobookshelf interface
+# Agreed Docker hosting: remaining handoff
 
-Drake has prepared a fork of the existing Audiobookshelf web interface and a small gateway. The local demonstration signs in, shows a bookshelf, plays generated audio, and supports seeking and progress updates.
+Jesse has agreed to host Drake's separate Audiobookshelf interface, with Docker required. The package preserves the stock ABS interface and connects to Jesse's existing backend using the same normal account, library, and listening progress. It runs one separate frontend container; it has no library mount, scanner, or second database.
 
-The proposal is to run **one separate frontend service on an unused loopback port**, with its own private HTTPS address. It would connect to your existing Audiobookshelf backend and use the same normal account, library, and listening progress. Your existing Audiobookshelf app keeps its current address and service. This package has no media storage, library scanner, or second database.
+The container runs as UID 1000 with a read-only filesystem, dropped capabilities, no-new-privileges, bounded memory/processes/logs, and no Docker socket. Its host port is loopback-only behind a separately approved private HTTPS ingress.
 
-For future updates, reviewed changes in Drake's GitHub fork would produce a versioned bundle. A host-owned updater would pull it and check its health. A failed update rolls the frontend back to its previous version. GitHub would not get a host login or broad access to your machine.
+Automatic updates are part of the handoff: reviewed GitHub master changes produce architecture-specific versioned images. A host-owned updater checks the release channel every five minutes, validates exact image IDs/checksums, waits for backend-compatible health, and rolls the frontend back if a replacement fails. It does not change or restart the original ABS backend.
 
-Nothing has been installed or tested against your server yet. Before choosing the install steps, we need:
+We still need these **non-secret facts** before installing:
 
-- Whether you are comfortable hosting this additional service, and where you would prefer it to run.
-- The host OS/service manager and whether Node 24 is available.
-- Your ABS version, whether it is served at `/` or `/audiobookshelf`, and whether login uses local accounts or OpenID.
-- A preferred private HTTPS address/port and confirmation that it will not replace an existing route.
-- Who would own enabling/disabling updates and the rollback procedure.
+- Host OS, Docker/Compose versions, actual Docker daemon architecture, and who will perform the approved install.
+- Existing ABS version and local-account versus OpenID login, plus / versus /audiobookshelf base path.
+- An existing approved backend address/network route reachable from the new container. A container's 127.0.0.1 is not the host.
+- An unused frontend host port and approved private HTTPS origin/ingress arrangement.
+- Python 3.9+ and the host owner's preferred scheduler for the updater; Linux user-systemd templates are supplied, and other hosts can schedule the same command.
 
-Please share **no passwords, tokens, keys, or screenshots containing secrets**. If you agree with the approach, the next step is a separately approved connectivity/account test and choosing the host-specific service/ingress setup. The first version intentionally keeps the stock Audiobookshelf interface; customization can follow once that baseline works with your backend.
+Do not share passwords, tokens, keys, or secret-containing screenshots. Host permission is already confirmed; persistent credential creation, new grants, and network-security changes still require their own action-time approval if needed. The next step is verified host access and approved live normal-account login/stream/seek/progress tests, then installation and activation of the release channel/updater. Nothing has been installed on Jesse's host or published as a release yet.
 
-The prepared Linux/systemd-user profile is optional pending your host details. It checks for updates every five minutes; installation and update activation require your approval. Detailed run/health/rollback steps are in [README.md](README.md).
+The practical Docker run/update/rollback sequence is in [docker/DOCKER-HANDOFF.md](docker/DOCKER-HANDOFF.md). The tested frontend baseline is ABS 2.37.1; a different backend version requires a matching source build and compatibility test.

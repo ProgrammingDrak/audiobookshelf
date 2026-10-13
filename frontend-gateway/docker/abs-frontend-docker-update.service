@@ -1,0 +1,8 @@
+[Unit]
+Description=Pull and health-check the approved frontend Docker release
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 %h/.local/share/abs-frontend-docker/update.py --home %h/.local/share/abs-frontend-docker --check
+UMask=0077
+TimeoutStartSec=600

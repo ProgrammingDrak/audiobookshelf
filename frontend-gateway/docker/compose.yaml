@@ -1,0 +1,29 @@
+name: abs-frontend-drake
+services:
+  frontend:
+    image: ${ABS_FRONTEND_IMAGE:?Set an approved immutable image ID or digest}
+    pull_policy: never
+    user: "1000:1000"
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 256m
+    cpus: 1.0
+    restart: unless-stopped
+    stop_grace_period: 10s
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8080"
+      CONTAINER_MODE: "1"
+      ABS_UPSTREAM: ${ABS_UPSTREAM:?Confirm the existing backend URL reachable from this container}
+      PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?Confirm the approved private HTTPS browser origin}
+      EXPECTED_BACKEND_VERSION: ${EXPECTED_BACKEND_VERSION:?Confirm backend version and match the client source}
+    ports:
+      - "127.0.0.1:${ABS_FRONTEND_PORT:-13379}:8080"
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"

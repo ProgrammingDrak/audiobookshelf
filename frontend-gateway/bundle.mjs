@@ -16,7 +16,7 @@ await rm(staging, { recursive: true, force: true })
 await mkdir(path.join(staging, 'client'), { recursive: true })
 await cp(path.join(repo, 'client/dist'), path.join(staging, 'client/dist'), { recursive: true })
 await mkdir(path.join(staging, 'frontend-gateway'), { recursive: true })
-for (const name of ['server.mjs', 'package.json', 'README.md', 'HOSTING-PROPOSAL.md', 'deployment']) await cp(path.join(repo, 'frontend-gateway', name), path.join(staging, 'frontend-gateway', name), { recursive: true })
+for (const name of ['server.mjs', 'package.json', 'README.md', 'HOSTING-PROPOSAL.md', 'deployment', 'docker']) await cp(path.join(repo, 'frontend-gateway', name), path.join(staging, 'frontend-gateway', name), { recursive: true })
 await cp(path.join(repo, 'LICENSE'), path.join(staging, 'LICENSE'))
 const metadata = { revision, source: `https://github.com/ProgrammingDrak/audiobookshelf/tree/${revision}`, clientVersion: JSON.parse(execFileSync('git', ['show', `${revision}:client/package.json`], { cwd: repo, encoding: 'utf8' })).version }
 await writeFile(path.join(staging, 'release.json'), JSON.stringify(metadata, null, 2) + '\n')

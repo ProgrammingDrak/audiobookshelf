@@ -1,6 +1,6 @@
 import http from 'node:http'
 import https from 'node:https'
-import { createReadStream, readFileSync, realpathSync } from 'node:fs'
+import { createReadStream, readFileSync, realpathSync, existsSync } from 'node:fs'
 import { realpath, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -10,18 +10,19 @@ export const base = '/audiobookshelf'
 const hopHeaders = ['connection', 'keep-alive', 'proxy-authenticate', 'proxy-authorization', 'te', 'trailer', 'transfer-encoding', 'upgrade']
 const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.woff': 'font/woff', '.woff2': 'font/woff2', '.wasm': 'application/wasm', '.jpg': 'image/jpeg', '.webp': 'image/webp', '.map': 'application/json', '.txt': 'text/plain' }
 
-export function configuration(env = process.env) {
+export function configuration(env = process.env, inContainer = existsSync('/.dockerenv')) {
   const upstream = new URL(env.ABS_UPSTREAM || 'http://127.0.0.1:13378')
   if (!['http:', 'https:'].includes(upstream.protocol) || upstream.username || upstream.password || upstream.search || upstream.hash || !['/', '/audiobookshelf', '/audiobookshelf/'].includes(upstream.pathname)) throw new Error('ABS_UPSTREAM must be a credential-free HTTP(S) URL at / or /audiobookshelf')
   const origin = new URL(env.PUBLIC_ORIGIN || 'http://127.0.0.1:13379')
   if (!['http:', 'https:'].includes(origin.protocol) || origin.username || origin.password || origin.pathname !== '/' || origin.search || origin.hash) throw new Error('PUBLIC_ORIGIN must be an HTTP(S) origin')
   const host = env.HOST || '127.0.0.1'
-  if (host !== '127.0.0.1' && host !== '::1') throw new Error('Gateway must bind to loopback; use an approved private HTTPS reverse proxy')
+  if (host !== '127.0.0.1' && host !== '::1' && !(host === '0.0.0.0' && env.CONTAINER_MODE === '1' && inContainer)) throw new Error('Gateway must bind to loopback outside an explicitly configured Docker container')
   const port = Number(env.PORT || 13379)
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Invalid PORT')
-  let revision = 'local'
-  try { revision = JSON.parse(readFileSync(path.join(here, '../release.json'), 'utf8')).revision } catch {}
-  return { upstream, origin, host, port, dist: path.resolve(env.CLIENT_DIST || path.join(here, '../client/dist')), expectedVersion: env.EXPECTED_BACKEND_VERSION, revision: env.BUILD_REVISION || revision }
+  let revision = 'local', clientVersion
+  try { const metadata = JSON.parse(readFileSync(path.join(here, '../release.json'), 'utf8')); revision = metadata.revision; clientVersion = metadata.clientVersion } catch {}
+  if (!clientVersion) try { clientVersion = JSON.parse(readFileSync(path.join(here, '../client/package.json'), 'utf8')).version } catch {}
+  return { upstream, origin, host, port, dist: path.resolve(env.CLIENT_DIST || path.join(here, '../client/dist')), expectedVersion: env.EXPECTED_BACKEND_VERSION, revision: env.BUILD_REVISION || revision, clientVersion }
 }
 
 function cleanHeaders(input) {
@@ -100,6 +101,7 @@ export function createGateway(config) {
 
   async function ready(res) {
     if (!config.expectedVersion) return json(res, 503, { error: 'backend_version_unconfirmed' })
+    if (config.clientVersion !== config.expectedVersion) return json(res, 503, { error: 'client_backend_version_mismatch' })
     try {
       const response = await fetch(upstream.origin + upstreamBase + '/status', { signal: AbortSignal.timeout(3000), redirect: 'error' })
       const status = await response.json()
