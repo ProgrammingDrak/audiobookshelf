@@ -75,5 +75,18 @@ class UpdaterTests(unittest.TestCase):
             docker.run = lambda *_args: self.fail('Docker must not run for a corrupt archive')
             with self.assertRaisesRegex(ValueError, 'checksum mismatch'): docker.load(archive, record('a'))
 
+    def test_unsafe_compose_cannot_add_socket_mounts_privileges_or_public_ports(self):
+        service = {'user': '1000:1000', 'read_only': True, 'cap_drop': ['ALL'], 'security_opt': ['no-new-privileges:true'], 'ports': [{'host_ip': '127.0.0.1', 'target': 8080}], 'environment': {key: 'synthetic' for key in ['HOST', 'PORT', 'CONTAINER_MODE', 'ABS_UPSTREAM', 'PUBLIC_ORIGIN', 'EXPECTED_BACKEND_VERSION']}}
+        docker = update.Docker('/tmp/unused-synthetic-deployment')
+        data = {'services': {'frontend': service}}
+        docker.compose = lambda *_args: json.dumps(data)
+        self.assertEqual(docker.configuration(record('a')['image_id']), data)
+        for key, value in [('volumes', [{'source': '/var/run/docker.sock', 'target': '/var/run/docker.sock'}]), ('privileged', True), ('network_mode', 'host'), ('read_only', False), ('ports', [{'host_ip': '0.0.0.0', 'target': 8080}])]:
+            bad = dict(service); bad[key] = value
+            data = {'services': {'frontend': bad}}
+            with self.subTest(key=key), self.assertRaises(ValueError): docker.configuration(record('a')['image_id'])
+        data = {'services': {'frontend': service, 'existing-backend': {}}}
+        with self.assertRaises(ValueError): docker.configuration(record('a')['image_id'])
+
 
 if __name__ == '__main__': unittest.main()
