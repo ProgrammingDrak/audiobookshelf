@@ -1,0 +1,16 @@
+[Unit]
+Description=Separate Audiobookshelf frontend gateway
+After=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/abs-frontend/runtime.env
+WorkingDirectory=%h/.local/share/abs-frontend/current
+ExecStart=/usr/bin/node %h/.local/share/abs-frontend/current/frontend-gateway/server.mjs
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+UMask=0077
+
+[Install]
+WantedBy=default.target

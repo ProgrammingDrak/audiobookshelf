@@ -1,0 +1,62 @@
+# Published image verified anonymously on amd64/arm64. Operator fills the two addresses.
+# Backend version/capabilities are detected automatically; verify the private HTTPS route.
+name: abs-frontend-drake
+services:
+  abs-frontend-drake:
+    container_name: abs-frontend-drake
+    image: ghcr.io/programmingdrak/audiobookshelf-frontend@sha256:d37abda0550fc387072e652213ea68377ba2f28ced95cf75d6754257015080ec
+    user: "1000:1000"
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 256m
+    cpus: 1.0
+    deploy:
+      resources:
+        limits:
+          memory: "256M"
+          cpus: "1.0"
+          pids: 128
+    network_mode: bridge
+    restart: unless-stopped
+    environment:
+      HOST: "0.0.0.0"
+      PORT: "8080"
+      CONTAINER_MODE: "1"
+      ABS_UPSTREAM: "http://abs-backend.example.invalid:13378"
+      PUBLIC_ORIGIN: "https://drake-abs.example.invalid"
+    ports:
+      - target: 8080
+        published: "13379"
+        host_ip: "127.0.0.1"
+        protocol: tcp
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "2"
+    x-casaos:
+      envs:
+        - container: ABS_UPSTREAM
+          description:
+            en_us: Existing Audiobookshelf address reachable from this container.
+      ports:
+        - container: "8080"
+          description:
+            en_us: Private frontend; host loopback port 13379.
+x-casaos:
+  title:
+    en_us: Drake's Audiobookshelf
+  description:
+    en_us: Separate stock frontend using the existing Audiobookshelf library and accounts.
+  developer: Audiobookshelf contributors
+  author: ProgrammingDrak
+  category: Media
+  architectures: [amd64, arm64]
+  main: abs-frontend-drake
+  scheme: https
+  hostname: drake-abs.example.invalid
+  port_map: ""
+  index: /audiobookshelf

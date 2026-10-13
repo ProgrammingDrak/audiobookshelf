@@ -1,0 +1,12 @@
+[Unit]
+Description=Check frontend Docker releases every five minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+RandomizedDelaySec=30
+Persistent=true
+Unit=abs-frontend-docker-update.service
+
+[Install]
+WantedBy=timers.target
