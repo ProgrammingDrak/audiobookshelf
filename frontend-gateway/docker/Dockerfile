@@ -6,6 +6,7 @@ LABEL org.opencontainers.image.title="Audiobookshelf separate frontend" \
       org.opencontainers.image.revision="${BUILD_REVISION}" \
       org.opencontainers.image.licenses="GPL-3.0-only"
 WORKDIR /app
+RUN apk add --no-cache zlib=1.3.2-r1
 COPY --chown=node:node client/dist ./client/dist
 COPY --chown=node:node frontend-gateway/server.mjs frontend-gateway/package.json ./frontend-gateway/
 COPY --chown=node:node frontend-gateway/docker/healthcheck.mjs ./frontend-gateway/docker/healthcheck.mjs
