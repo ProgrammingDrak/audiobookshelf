@@ -41,7 +41,7 @@ test('Docker runtime and real Compose rollout preserve login/audio/socket/progre
   for (const name of ['mock-backend.mjs', 'docker-mock-server.mjs']) await cp(path.join(repo, 'frontend-gateway/test', name), path.join(stage, 'fixture/frontend-gateway/test', name))
   await cp(path.join(repo, 'client/package.json'), path.join(stage, 'fixture/client/package.json'))
   docker('network', 'create', network)
-  docker('run', '-d', '--name', mock, '--network', network, '--network-alias', 'mock', '--user', '1000:1000', '--read-only', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges:true', '--mount', `type=bind,src=${path.join(stage, 'fixture')},dst=/fixture,readonly`, '--mount', `type=bind,src=${path.join(repo, 'client/node_modules')},dst=/fixture/client/node_modules,readonly`, baseImage, 'node', '/fixture/frontend-gateway/test/docker-mock-server.mjs')
+  docker('run', '-d', '--name', mock, '--network', network, '--network-alias', 'mock', '--user', '1000:1000', '--read-only', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges:true', '-e', 'ABS_MOCK_VERSION=2.38.0', '--mount', `type=bind,src=${path.join(stage, 'fixture')},dst=/fixture,readonly`, '--mount', `type=bind,src=${path.join(repo, 'client/node_modules')},dst=/fixture/client/node_modules,readonly`, baseImage, 'node', '/fixture/frontend-gateway/test/docker-mock-server.mjs')
   const reservation = http.createServer(); reservation.listen(0, '127.0.0.1'); await once(reservation, 'listening')
   const port = reservation.address().port; await new Promise(resolve => reservation.close(resolve))
   const origin = `http://127.0.0.1:${port}`
@@ -53,6 +53,7 @@ test('Docker runtime and real Compose rollout preserve login/audio/socket/progre
   }
   const ready = await (await fetch(origin + '/readyz')).json()
   assert.equal(ready.revision, revision); assert.equal(ready.ok, true)
+  assert.equal(ready.backendVersion, '2.38.0'); assert.equal(ready.versionNotice, 'version_difference_is_advisory'); assert.equal(ready.authenticatedFlows, 'unverified')
   const inspect = JSON.parse(docker('inspect', app))[0]
   assert.equal(inspect.Config.User, '1000:1000'); assert.equal(inspect.HostConfig.ReadonlyRootfs, true); assert.deepEqual(inspect.HostConfig.CapDrop, ['ALL']); assert.equal(inspect.Mounts.length, 0)
   assert.equal(inspect.HostConfig.PortBindings['8080/tcp'][0].HostIp, '127.0.0.1')
@@ -86,11 +87,12 @@ test('Docker runtime and real Compose rollout preserve login/audio/socket/progre
   await writeFile(path.join(home, 'compose.yaml'), compose)
   await writeFile(path.join(home, 'runtime.env'), `ABS_FRONTEND_IMAGE=${image}\nABS_UPSTREAM=http://mock:13380\nPUBLIC_ORIGIN=${origin}\nEXPECTED_BACKEND_VERSION=2.37.1\nABS_FRONTEND_PORT=${port}\n`, { mode: 0o600 })
   const records = [{ revision, image_id: JSON.parse(docker('image', 'inspect', image))[0].Id }]
-  for (const [rev, version] of [['c'.repeat(40), '2.37.1'], ['d'.repeat(40), '99.0.0']]) {
+  for (const [rev, missingClient] of [['c'.repeat(40), false], ['d'.repeat(40), true]]) {
     const context = path.join(stage, 'image-' + rev[0])
     await cp(path.join(repo, 'frontend-gateway/out/bundle'), context, { recursive: true })
-    const metadata = JSON.parse(await readFile(path.join(context, 'release.json'), 'utf8')); metadata.revision = rev; metadata.clientVersion = version
+    const metadata = JSON.parse(await readFile(path.join(context, 'release.json'), 'utf8')); metadata.revision = rev
     await writeFile(path.join(context, 'release.json'), JSON.stringify(metadata))
+    if (missingClient) await rm(path.join(context, 'client/dist/index.html'))
     const reference = `abs-frontend:fixture-${suffix}-${rev[0]}`; fixtureImages.push(reference)
     docker('build', '--build-arg', `BUILD_REVISION=${rev}`, '-t', reference, '-f', path.join(repo, 'frontend-gateway/docker/Dockerfile'), context)
     records.push({ revision: rev, image_id: JSON.parse(docker('image', 'inspect', reference))[0].Id })

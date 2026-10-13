@@ -22,7 +22,7 @@ export function configuration(env = process.env, inContainer = existsSync('/.doc
   let revision = 'local', clientVersion
   try { const metadata = JSON.parse(readFileSync(path.join(here, '../release.json'), 'utf8')); revision = metadata.revision; clientVersion = metadata.clientVersion } catch {}
   if (!clientVersion) try { clientVersion = JSON.parse(readFileSync(path.join(here, '../client/package.json'), 'utf8')).version } catch {}
-  return { upstream, origin, host, port, dist: path.resolve(env.CLIENT_DIST || path.join(here, '../client/dist')), expectedVersion: env.EXPECTED_BACKEND_VERSION, revision: env.BUILD_REVISION || revision, clientVersion }
+  return { upstream, origin, host, port, dist: path.resolve(env.CLIENT_DIST || path.join(here, '../client/dist')), revision: env.BUILD_REVISION || revision, clientVersion }
 }
 
 function cleanHeaders(input) {
@@ -100,14 +100,17 @@ export function createGateway(config) {
   }
 
   async function ready(res) {
-    if (!config.expectedVersion) return json(res, 503, { error: 'backend_version_unconfirmed' })
-    if (config.clientVersion !== config.expectedVersion) return json(res, 503, { error: 'client_backend_version_mismatch' })
     try {
       const response = await fetch(upstream.origin + upstreamBase + '/status', { signal: AbortSignal.timeout(3000), redirect: 'error' })
       const status = await response.json()
-      if (!response.ok || !status.isInit || status.serverVersion !== config.expectedVersion || !status.authMethods?.length) return json(res, 503, { error: 'backend_incompatible' })
+      if (!response.ok || status.app !== 'audiobookshelf' || status.isInit !== true || !Array.isArray(status.authMethods) || !status.authMethods.some(method => ['local', 'openid'].includes(method))) return json(res, 503, { error: 'backend_status_contract_unmet' })
       await stat(path.join(config.dist, 'index.html'))
-      json(res, 200, { ok: true, revision: config.revision, backendVersion: status.serverVersion })
+      const backendVersion = typeof status.serverVersion === 'string' && status.serverVersion.trim() && status.serverVersion.length <= 128 ? status.serverVersion : null
+      json(res, 200, {
+        ok: true, revision: config.revision, clientVersion: config.clientVersion, backendVersion,
+        preflight: 'status_contract_passed', authenticatedFlows: 'unverified',
+        versionNotice: !backendVersion ? 'backend_version_unknown' : backendVersion === config.clientVersion ? 'same_version_as_client' : 'version_difference_is_advisory'
+      })
     } catch { json(res, 503, { error: 'backend_unavailable' }) }
   }
 

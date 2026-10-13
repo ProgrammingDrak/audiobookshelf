@@ -77,7 +77,9 @@ class Docker:
         ports = service.get('ports', [])
         if len(ports) != 1 or ports[0].get('host_ip') != '127.0.0.1' or ports[0].get('target') != 8080:
             raise ValueError('Frontend port must publish only to host loopback')
-        if set(service.get('environment', {})) != {'HOST', 'PORT', 'CONTAINER_MODE', 'ABS_UPSTREAM', 'PUBLIC_ORIGIN', 'EXPECTED_BACKEND_VERSION'}:
+        fields = set(service.get('environment', {}))
+        required = {'HOST', 'PORT', 'CONTAINER_MODE', 'ABS_UPSTREAM', 'PUBLIC_ORIGIN'}
+        if not required <= fields or fields - required - {'EXPECTED_BACKEND_VERSION'}:
             raise ValueError('Unexpected frontend environment; no tokens or revision overrides permitted')
         return data
 

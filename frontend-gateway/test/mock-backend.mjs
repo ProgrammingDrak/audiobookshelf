@@ -22,7 +22,7 @@ function audio() {
 
 export function createMockBackend(prefix = '') {
   const requests = [], bytes = audio()
-  let currentTime = 0, version = '2.37.1', initialized = true, accessToken = 'demo-access-1', refreshToken = 'demo-refresh-1', rotations = 0
+  let currentTime = 0, version = '2.37.1', initialized = true, appName = 'audiobookshelf', authMethods = ['local'], accessToken = 'demo-access-1', refreshToken = 'demo-refresh-1', rotations = 0
   const user = () => ({ id: 'demo-user', username: 'demo', type: 'user', isActive: true, accessToken, token: accessToken, permissions: { accessAllLibraries: true, download: false, update: false, delete: false, upload: false, accessExplicitContent: true }, librariesAccessible: [], bookmarks: [], seriesHideFromContinueListening: [], mediaProgress: currentTime ? [{ id: 'demo-progress', libraryItemId: demoItem.id, currentTime, duration: 60, progress: currentTime / 60, isFinished: false }] : [] })
   const library = { id: 'demo-library', name: 'LOCAL SYNTHETIC DEMO', mediaType: 'book', displayOrder: 1, icon: 'audiobooks', provider: 'audible', folders: [], settings: { coverAspectRatio: 1, audiobooksOnly: true } }
   const login = () => ({ user: user(), userDefaultLibraryId: library.id, serverSettings: { language: 'en-us', version, chromecastEnabled: false, sortingIgnorePrefix: true, scannerFindCovers: false, homeBookshelfView: 0, bookshelfView: 0 }, Source: 'local-mock', ereaderDevices: [] })
@@ -36,7 +36,7 @@ export function createMockBackend(prefix = '') {
     const pathname = new URL(req.url, 'http://mock').pathname
     if (prefix && !pathname.startsWith(prefix + '/')) return json(res, 404, { error: 'wrong_prefix' })
     const local = pathname.slice(prefix.length)
-    if (local === '/status') return json(res, 200, { app: 'audiobookshelf', serverVersion: version, isInit: initialized, language: 'en-us', authMethods: ['local'], authFormData: { authLoginCustomMessage: '<b>LOCAL SYNTHETIC DEMO</b> — demo / demo. No real library or account.' } })
+    if (local === '/status') return json(res, 200, { app: appName, serverVersion: version, isInit: initialized, language: 'en-us', authMethods, authFormData: { authLoginCustomMessage: '<b>LOCAL SYNTHETIC DEMO</b> — demo / demo. No real library or account.' } })
     if (local === '/login') {
       if (body.username !== 'demo' || body.password !== 'demo') return json(res, 401, { error: 'invalid_credentials' })
       // Demo runs on HTTP; real tests also cover preservation of Secure cookies.
@@ -83,5 +83,5 @@ export function createMockBackend(prefix = '') {
     if (token !== accessToken) return socket.emit('auth_failed', { message: 'Invalid mock token' })
     socket.emit('init', { usersOnline: [] })
   }))
-  return { server, io, requests, bytes, get currentTime() { return currentTime }, set version(value) { version = value }, set initialized(value) { initialized = value }, expireAccess() { accessToken = 'expired-server-side' }, close: () => new Promise(resolve => io.close(resolve)) }
+  return { server, io, requests, bytes, get currentTime() { return currentTime }, set version(value) { version = value }, set initialized(value) { initialized = value }, set appName(value) { appName = value }, set authMethods(value) { authMethods = value }, expireAccess() { accessToken = 'expired-server-side' }, close: () => new Promise(resolve => io.close(resolve)) }
 }

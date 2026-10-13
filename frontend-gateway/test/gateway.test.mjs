@@ -146,14 +146,28 @@ test('progress writes reach the one backend and broadcast to a second socket', a
   assert.equal(resumed.json.currentTime, 23.5)
 })
 
-test('readiness fails on wrong/uninitialized backend and reports versioned build', async t => {
-  const { request, backend, config } = await fixture(t)
-  assert.deepEqual((await request('/readyz')).json, { ok: true, revision: 'test-revision', backendVersion: '2.37.1' })
-  backend.version = 'older'; assert.equal((await request('/readyz')).status, 503)
-  backend.version = '2.37.1'; backend.initialized = false; assert.equal((await request('/readyz')).status, 503)
-  backend.initialized = true; config.clientVersion = '99.0.0'; assert.equal((await request('/readyz')).json.error, 'client_backend_version_mismatch')
-  config.clientVersion = '2.37.1'
-  backend.initialized = true; config.expectedVersion = undefined; assert.equal((await request('/readyz')).json.error, 'backend_version_unconfirmed')
+test('read-only readiness detects status capabilities and treats version differences as advisory', async t => {
+  const { request, backend } = await fixture(t)
+  const before = backend.requests.length
+  assert.deepEqual((await request('/readyz')).json, { ok: true, revision: 'test-revision', clientVersion: '2.37.1', backendVersion: '2.37.1', preflight: 'status_contract_passed', authenticatedFlows: 'unverified', versionNotice: 'same_version_as_client' })
+  for (const version of ['2.36.1', '2.38.0', '99.0.0']) {
+    backend.version = version
+    const result = await request('/readyz')
+    assert.equal(result.status, 200)
+    assert.equal(result.json.backendVersion, version)
+    assert.equal(result.json.versionNotice, 'version_difference_is_advisory')
+    assert.equal(result.json.authenticatedFlows, 'unverified')
+  }
+  backend.version = undefined
+  assert.equal((await request('/readyz')).json.versionNotice, 'backend_version_unknown')
+  backend.initialized = false; assert.equal((await request('/readyz')).status, 503)
+  backend.initialized = true; backend.appName = 'other-service'; assert.equal((await request('/readyz')).json.error, 'backend_status_contract_unmet')
+  backend.appName = 'audiobookshelf'
+  for (const methods of [[], ['unsupported'], 'local', null]) {
+    backend.authMethods = methods; assert.equal((await request('/readyz')).status, 503)
+  }
+  backend.authMethods = ['openid']; assert.equal((await request('/readyz')).status, 200)
+  assert(backend.requests.slice(before).every(item => item.method === 'GET' && item.url === '/status' && !item.headers.authorization && !item.headers.cookie))
   assert.equal((await request('/healthz')).status, 200)
 })
 

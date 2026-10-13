@@ -16,4 +16,4 @@ We still need these **non-secret facts** before installing:
 
 Do not share passwords, tokens, keys, or secret-containing screenshots. Host permission is already confirmed; persistent credential creation, new grants, and network-security changes still require their own action-time approval if needed. The next step is verified host access and approved live normal-account login/stream/seek/progress tests, then installation and activation of the release channel/updater. Nothing has been installed on Jesse's host or published as a release yet.
 
-The practical Docker run/update/rollback sequence is in [docker/DOCKER-HANDOFF.md](docker/DOCKER-HANDOFF.md). The tested frontend baseline is ABS 2.37.1; a different backend version requires a matching source build and compatibility test.
+The practical Docker run/update/rollback sequence is in [docker/DOCKER-HANDOFF.md](docker/DOCKER-HANDOFF.md). The tested frontend baseline is ABS 2.37.1; backend versions are detected automatically and differences are advisory; normal-account flow verification determines compatibility.

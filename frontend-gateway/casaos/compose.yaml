@@ -1,5 +1,5 @@
 # Published image verified anonymously on amd64/arm64. Operator fills the two addresses.
-# Verify backend 2.37.1 and the approved private HTTPS route before importing.
+# Backend version/capabilities are detected automatically; verify the private HTTPS route.
 name: abs-frontend-drake
 services:
   abs-frontend-drake:
@@ -27,7 +27,6 @@ services:
       CONTAINER_MODE: "1"
       ABS_UPSTREAM: "http://abs-backend.example.invalid:13378"
       PUBLIC_ORIGIN: "https://drake-abs.example.invalid"
-      EXPECTED_BACKEND_VERSION: "2.37.1"
     ports:
       - target: 8080
         published: "13379"
