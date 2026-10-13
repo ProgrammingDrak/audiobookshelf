@@ -26,3 +26,5 @@ sw.*
 tailwind.compiled.css
 tailwind.config.js
 frontend-gateway/out/
+**/__pycache__/
+*.pyc

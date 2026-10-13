@@ -36,6 +36,7 @@ test('Docker runtime and real Compose rollout preserve login/audio/socket/progre
   await chmod(stage, 0o755)
   await mkdir(path.join(stage, 'fixture/frontend-gateway/test'), { recursive: true })
   await mkdir(path.join(stage, 'fixture/client'), { recursive: true })
+  await mkdir(path.join(stage, 'fixture/client/node_modules'))
   await mkdir(home)
   for (const name of ['mock-backend.mjs', 'docker-mock-server.mjs']) await cp(path.join(repo, 'frontend-gateway/test', name), path.join(stage, 'fixture/frontend-gateway/test', name))
   await cp(path.join(repo, 'client/package.json'), path.join(stage, 'fixture/client/package.json'))
