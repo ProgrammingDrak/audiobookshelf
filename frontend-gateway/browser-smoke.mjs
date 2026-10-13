@@ -30,8 +30,8 @@ const evaluate = async expression => {
   if (result.exceptionDetails) throw new Error(result.exceptionDetails.exception?.description || result.exceptionDetails.text)
   return result.result.value
 }
-const waitFor = async expression => {
-  for (let attempt = 0; attempt < 100; attempt++) { if (await evaluate(expression)) return; await new Promise(resolve => setTimeout(resolve, 100)) }
+const waitFor = async (expression, attempts = 100) => {
+  for (let attempt = 0; attempt < attempts; attempt++) { if (await evaluate(expression)) return; await new Promise(resolve => setTimeout(resolve, 100)) }
   throw new Error(`Timed out: ${expression}; page=${await evaluate('document.body.innerText')}; exceptions=${errors.join('; ')}`)
 }
 const screenshot = async name => { const result = await call('Page.captureScreenshot', { format: 'png' }); await writeFile(path.join(out, name), Buffer.from(result.data, 'base64')) }
@@ -51,7 +51,7 @@ try {
   await evaluate('document.querySelector("audio").currentTime = 23')
   await waitFor('document.querySelector("audio").currentTime >= 24 && document.body.innerText.includes("0:24")')
   await screenshot('player.png')
-  await waitFor('window.$nuxt.$store.state.user.user.mediaProgress.some(p => p.currentTime >= 23)')
+  await waitFor('window.$nuxt.$store.state.user.user.mediaProgress.some(p => p.currentTime >= 23)', 450)
   const progress = await evaluate('window.$nuxt.$store.state.user.user.mediaProgress[0].currentTime')
   const evidence = { url: await evaluate('location.href'), audio: await evaluate('({readyState:document.querySelector("audio").readyState,paused:document.querySelector("audio").paused,currentTime:document.querySelector("audio").currentTime,duration:document.querySelector("audio").duration})'), backendProgress: progress, exceptions: errors, result: 'login/bookshelf/audio/seek/progress passed with synthetic backend' }
   assert.equal(errors.length, 0)

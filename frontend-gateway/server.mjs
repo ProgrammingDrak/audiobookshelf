@@ -1,6 +1,6 @@
 import http from 'node:http'
 import https from 'node:https'
-import { createReadStream, readFileSync } from 'node:fs'
+import { createReadStream, readFileSync, realpathSync } from 'node:fs'
 import { realpath, stat } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -179,7 +179,7 @@ export function createGateway(config) {
   return server
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const config = configuration()
   const server = createGateway(config)
   server.listen(config.port, config.host, () => console.log(`ABS frontend ${config.revision} listening on loopback port ${config.port}`))

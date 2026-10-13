@@ -2,7 +2,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import http from 'node:http'
 import { once } from 'node:events'
-import { mkdtemp, writeFile, rm, readFile, symlink } from 'node:fs/promises'
+import { mkdtemp, mkdir, cp, writeFile, rm, readFile, symlink } from 'node:fs/promises'
+import { spawn } from 'node:child_process'
 import os from 'node:os'
 import path from 'node:path'
 import { createRequire } from 'node:module'
@@ -158,4 +159,29 @@ test('configuration refuses non-loopback listener and embedded upstream credenti
   assert.throws(() => configuration({ HOST: '0.0.0.0' }), /loopback/)
   assert.throws(() => configuration({ ABS_UPSTREAM: 'http://user:secret@localhost' }), /credential-free/)
   assert.throws(() => configuration({ ABS_UPSTREAM: 'http://localhost/other' }), /credential-free/)
+})
+
+test('versioned gateway starts through the current-release symlink used by host supervisor', async t => {
+  const { backend, config } = await fixture(t)
+  const root = await mkdtemp(path.join(os.tmpdir(), 'abs-release-launch-'))
+  const revision = 'c'.repeat(40)
+  const release = path.join(root, 'releases', revision)
+  await mkdir(path.join(release, 'frontend-gateway'), { recursive: true })
+  await cp(new URL('../server.mjs', import.meta.url), path.join(release, 'frontend-gateway/server.mjs'))
+  await writeFile(path.join(release, 'release.json'), JSON.stringify({ revision }))
+  await symlink(`releases/${revision}`, path.join(root, 'current'))
+  const reservation = http.createServer(); reservation.listen(0, '127.0.0.1'); await once(reservation, 'listening')
+  const port = reservation.address().port
+  await new Promise(resolve => reservation.close(resolve))
+  const child = spawn(process.execPath, [path.join(root, 'current/frontend-gateway/server.mjs')], { env: { ...process.env, ABS_UPSTREAM: config.upstream.href, CLIENT_DIST: config.dist, PUBLIC_ORIGIN: `http://127.0.0.1:${port}`, PORT: String(port), HOST: '127.0.0.1', EXPECTED_BACKEND_VERSION: '2.37.1', BUILD_REVISION: '' }, stdio: ['ignore', 'pipe', 'pipe'] })
+  const exited = once(child, 'exit')
+  t.after(async () => { if (child.exitCode === null) { child.kill('SIGTERM'); await exited }; await rm(root, { recursive: true, force: true }) })
+  await Promise.race([
+    once(child.stdout, 'data'),
+    exited.then(() => { throw new Error('Gateway exited before listening through current symlink') }),
+    new Promise((_, reject) => { const timer = setTimeout(() => reject(new Error('Gateway startup timed out')), 3000); timer.unref() })
+  ])
+  const response = await fetch(`http://127.0.0.1:${port}/readyz`)
+  assert.equal(response.status, 200); assert.equal((await response.json()).revision, revision)
+  assert.equal(backend.requests.at(-1).url, '/status')
 })
