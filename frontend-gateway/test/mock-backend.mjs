@@ -60,6 +60,7 @@ export function createMockBackend(prefix = '') {
     if (local.startsWith('/hls/')) { res.writeHead(200, { 'content-type': local.endsWith('.m3u8') ? 'application/vnd.apple.mpegurl' : 'video/mp2t' }); return res.end(local.endsWith('.m3u8') ? '#EXTM3U\n#EXTINF:6,\nsegment-1.ts\n' : Buffer.from('synthetic-segment')) }
     if (local === '/api/unauthorized') return json(res, 401, { error: 'expired' })
     if (local.startsWith('/api/') && req.headers.authorization !== `Bearer ${accessToken}`) return json(res, 401, { error: 'expired' })
+    if (local === '/api/me') return json(res, 200, user())
     if (local === '/api/authorize') return json(res, 200, login())
     if (local === '/api/libraries') return json(res, 200, { libraries: [library] })
     if (local === '/api/libraries/demo-library') return json(res, 200, { library, filterdata: { authors: [], genres: [], tags: [], series: [], narrators: [], publishers: [], languages: ['English'], publishedDecades: [] }, issues: 0, numUserPlaylists: 0 })

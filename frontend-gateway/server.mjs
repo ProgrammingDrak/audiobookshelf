@@ -1,4 +1,5 @@
 import http from 'node:http'
+import { readingHandler } from './reading-store.mjs'
 import https from 'node:https'
 import { createReadStream, readFileSync, realpathSync, existsSync } from 'node:fs'
 import { realpath, stat } from 'node:fs/promises'
@@ -22,7 +23,7 @@ export function configuration(env = process.env, inContainer = existsSync('/.doc
   let revision = 'local', clientVersion
   try { const metadata = JSON.parse(readFileSync(path.join(here, '../release.json'), 'utf8')); revision = metadata.revision; clientVersion = metadata.clientVersion } catch {}
   if (!clientVersion) try { clientVersion = JSON.parse(readFileSync(path.join(here, '../client/package.json'), 'utf8')).version } catch {}
-  return { upstream, origin, host, port, dist: path.resolve(env.CLIENT_DIST || path.join(here, '../client/dist')), revision: env.BUILD_REVISION || revision, clientVersion }
+  return { upstream, origin, host, port, readingDb: env.READING_DB || null, dist: path.resolve(env.CLIENT_DIST || path.join(here, '../client/dist')), revision: env.BUILD_REVISION || revision, clientVersion }
 }
 
 function cleanHeaders(input) {
@@ -38,6 +39,7 @@ function json(res, status, error) {
 
 export function createGateway(config) {
   const { upstream, origin } = config
+  const reading = readingHandler(config)
   const upstreamBase = upstream.pathname.replace(/\/$/, '')
   const transport = upstream.protocol === 'https:' ? https : http
   const sockets = new Set()
@@ -50,8 +52,9 @@ export function createGateway(config) {
     try { decoded = decodeURIComponent(rawPath) } catch { return null }
     if (decoded.includes('\\') || decoded.includes('\0') || decoded.split('/').some(p => p === '..' || p === '.') || /%2f|%5c/i.test(rawPath)) return null
     if (req.headers.host !== origin.host) return null
-    if (req.headers.origin && req.headers.origin !== origin.origin) return null
-    if (req.headers['sec-fetch-site'] === 'cross-site') return null
+    const readingNavigation = ['GET', 'HEAD'].includes(req.method) && req.headers['sec-fetch-mode'] === 'navigate' && req.headers['sec-fetch-dest'] === 'document' && /^\/audiobookshelf\/(reading|login)\/?$/.test(rawPath)
+    if (req.headers.origin && req.headers.origin !== origin.origin && !readingNavigation) return null
+    if (req.headers['sec-fetch-site'] === 'cross-site' && !readingNavigation) return null
     const url = new URL(req.url, origin)
     if (!url.pathname.startsWith(base + '/') && url.pathname !== base && !['/', '/healthz', '/readyz'].includes(url.pathname)) return null
     return { url, local: url.pathname.slice(base.length) || '/' }
@@ -143,6 +146,7 @@ export function createGateway(config) {
     if (selected.url.pathname === '/' || selected.url.pathname === base) {
       res.writeHead(302, { location: base + '/', 'cache-control': 'no-store' }); return res.end()
     }
+    if (selected.local === '/api/quietshelf/reading') return reading(req, res)
     if (selected.local === '/init') return json(res, 403, { error: 'existing_backend_required' })
     if (/^\/(api|public|hls|auth|feed|socket\.io)(\/|$)/.test(selected.local) || ['/status', '/ping', '/healthcheck', '/logout'].includes(selected.local) || (selected.local === '/login' && req.method === 'POST')) return proxy(req, res, selected)
     try { await staticFile(req, res, selected.local) } catch { json(res, 503, { error: 'client_unavailable' }) }

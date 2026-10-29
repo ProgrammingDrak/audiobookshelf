@@ -63,3 +63,33 @@ Gateway tests execute the real stock Axios/Vuex refresh code, socket reauthentic
 Upstream Vue/Nuxt dependencies remain a faithful baseline; legacy/EOL packages and existing audit findings were not silently upgraded. The runtime gateway adds no npm dependency, and its container removes npm/Yarn/Corepack. Runtime images use a verified pinned official Node 24 multi-architecture base. Actual image scan results and local/CI run evidence are recorded separately; do not infer live compatibility from mock tests.
 
 Sources: [ABS source baseline](https://github.com/ProgrammingDrak/audiobookshelf/tree/743d9152208507a1dbf7c95c94290071338f44bd), [Docker Compose services](https://docs.docker.com/reference/compose-file/services/), [Docker image loading](https://docs.docker.com/reference/cli/docker/image/load/), [Tailscale Serve](https://tailscale.com/docs/reference/tailscale-cli/serve), [GitHub standard runner platforms](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
+
+## Private reading shelf
+
+The separate gateway owns reading-list metadata; it never modifies ABS books,
+users or playback progress. Set `READING_DB` to an absolute SQLite filename on
+persistent storage owned by the gateway user (for example `/data/reading.sqlite`).
+Mount that dedicated directory read/write while leaving the rest of the container
+read-only. Back up the SQLite database using SQLite's backup API before upgrades.
+No ABS library mount is needed. Without this setting the API returns 503 and the
+UI keeps local pending edits; it never reports a remote save.
+
+Every reading API call verifies the Bearer token with the fixed backend's `/api/me`.
+Records and operation receipts are scoped to backend URL plus authenticated user
+ID. A client account assertion rejects old-tab writes after switching accounts.
+SQLite transactions serialize duplicate adds, retries and revision checks. Removed
+books are tombstones retained indefinitely and can be restored; no automatic purge.
+Concurrent edits to one book are rejected, with the local draft retained for review.
+Local data is namespaced by origin and account. This page uses the existing app shell;
+a completely cold offline launch is not promised by the current shell.
+
+Only an explicit **Plan reading time** action sends title/author, book link, selected
+minutes and an idempotency key to DCC in the URL fragment. No credentials or notes
+travel. DCC requires its own login and Save action. Session completion does not
+mark the book finished or change ABS playback progress.
+
+For the approved two-book account seed, run `seed-reading.mjs <gateway-origin>
+<verified-ABS-user-id>` with an existing `QUIETSHELF_ACCESS_TOKEN` supplied only
+through the environment. It verifies the account before writing, uses stable
+operation IDs, and reads back both titles. This has not been run against a real
+account as part of the local implementation.

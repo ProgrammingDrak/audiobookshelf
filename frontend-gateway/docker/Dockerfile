@@ -8,7 +8,7 @@ LABEL org.opencontainers.image.title="Audiobookshelf separate frontend" \
 WORKDIR /app
 RUN apk add --no-cache zlib=1.3.2-r1
 COPY --chown=node:node client/dist ./client/dist
-COPY --chown=node:node frontend-gateway/server.mjs frontend-gateway/package.json ./frontend-gateway/
+COPY --chown=node:node frontend-gateway/server.mjs frontend-gateway/reading-store.mjs frontend-gateway/package.json ./frontend-gateway/
 COPY --chown=node:node frontend-gateway/docker/healthcheck.mjs ./frontend-gateway/docker/healthcheck.mjs
 COPY --chown=node:node LICENSE source.tar.gz release.json ./
 RUN node -e "const fs=require('fs');const m=JSON.parse(fs.readFileSync('release.json'));if(m.revision!==process.argv[1]||!/^[a-f0-9]{40}$/.test(m.revision)||!m.clientVersion)process.exit(1)" "$BUILD_REVISION"
