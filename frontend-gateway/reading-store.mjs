@@ -13,7 +13,7 @@ export function openReadingStore(filename) {
     CREATE TABLE IF NOT EXISTS books(owner TEXT NOT NULL,id TEXT NOT NULL,book_key TEXT NOT NULL,body TEXT NOT NULL,revision INTEGER NOT NULL,deleted INTEGER NOT NULL DEFAULT 0,PRIMARY KEY(owner,id));
     CREATE UNIQUE INDEX IF NOT EXISTS unique_live_book ON books(owner,book_key) WHERE deleted=0;
     CREATE TABLE IF NOT EXISTS receipts(owner TEXT NOT NULL,op TEXT NOT NULL,body TEXT NOT NULL,PRIMARY KEY(owner,op));`)
-  const decode = row => row ? { ...JSON.parse(row.body), id: row.id, revision: row.revision, deleted: !!row.deleted } : null
+  const decode = row => row ? { ownership: 'unspecified', ...JSON.parse(row.body), id: row.id, revision: row.revision, deleted: !!row.deleted } : null
   const get = (owner, id) => decode(db.prepare('SELECT * FROM books WHERE owner=? AND id=?').get(owner, id))
   const list = owner => db.prepare('SELECT * FROM books WHERE owner=? ORDER BY rowid DESC').all(owner).map(decode)
   function apply(owner, op) {
@@ -29,7 +29,8 @@ export function openReadingStore(filename) {
       if (current?.deleted && op.action === 'save') throw fail('This book was removed. Restore it before editing.', 409)
       let next = current ? { ...current } : { id: op.id, revision: 0, deleted: false }
       if (op.action === 'save') {
-        next = { ...next, title: text(op.book?.title, 300), author: text(op.book?.author, 200), notes: text(op.book?.notes, 4000), status: op.book?.status, libraryItemId: text(op.book?.libraryItemId, 100) }
+        next = { ...next, title: text(op.book?.title, 300), author: text(op.book?.author, 200), notes: text(op.book?.notes, 4000), status: op.book?.status, ownership: op.book?.ownership ?? current?.ownership ?? 'unspecified', libraryItemId: text(op.book?.libraryItemId, 100) }
+        if (!['owned', 'unowned', 'unspecified'].includes(next.ownership)) throw fail('Choose Owned, Unowned, or Not specified')
         if (!next.title || !['to-read', 'reading', 'finished'].includes(next.status) || (next.libraryItemId && !/^[a-zA-Z0-9_-]+$/.test(next.libraryItemId))) throw fail('A title and valid reading status are required')
       }
       next.deleted = op.action === 'remove'

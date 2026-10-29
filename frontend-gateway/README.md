@@ -93,3 +93,7 @@ For the approved two-book account seed, run `seed-reading.mjs <gateway-origin>
 through the environment. It verifies the account before writing, uses stable
 operation IDs, and reads back both titles. This has not been run against a real
 account as part of the local implementation.
+
+Ownership is explicit (`owned`, `unowned`, or `unspecified`), independent of reading status and library linkage. Legacy entries default to unspecified; updates from older clients preserve ownership. Duplicate adds return the existing entry without overwriting its status or ownership.
+
+The web download flow delegates to browser file downloads and provides no verifiable current-device inventory. Therefore download labels remain **not verified** and the Downloaded filter has no claimed matches. Server podcast download statuses, stale metadata, and files on other devices are never treated as local/offline availability. This change adds no downloader or offline playback claim.

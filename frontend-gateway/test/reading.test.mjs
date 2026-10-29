@@ -59,3 +59,22 @@ test('gateway authenticates reading requests, isolates users and rejects old-acc
     assert.equal((await call('alice')).status, 503)
   } finally { await gateway.shutdown(); await new Promise(r => backend.close(r)) }
 })
+
+test('ownership is explicit, independent, preserved by older edits and duplicate adds', () => {
+  const s = openReadingStore(':memory:')
+  try {
+    const original = s.apply('a', { ...add(), book: { ...add().book, status: 'reading', ownership: 'owned', libraryItemId: 'shared-book' } }).book
+    assert.equal(original.ownership, 'owned'); assert.equal(original.status, 'reading')
+    const duplicate = s.apply('a', { ...add('second-book'), book: { ...add().book, ownership: 'unowned' } })
+    assert.equal(duplicate.duplicate, true); assert.equal(duplicate.book.ownership, 'owned'); assert.equal(duplicate.book.status, 'reading')
+    const legacy = s.apply('a', { ...add(), opId: 'legacy-edit', revision: 1, book: { ...add().book, status: 'finished' } }).book
+    assert.equal(legacy.ownership, 'owned'); assert.equal(legacy.status, 'finished')
+    const unowned = s.apply('a', { ...add('third-book', 'Unowned title'), book: { ...add().book, title: 'Unowned title', ownership: 'unowned', libraryItemId: 'shared-copy' } }).book
+    assert.equal(unowned.ownership, 'unowned')
+    const unspecified = s.apply('a', { ...add('fourth-book', 'Unknown ownership'), book: { ...add().book, title: 'Unknown ownership', libraryItemId: 'shared-copy' } }).book
+    assert.equal(unspecified.ownership, 'unspecified')
+    assert.throws(() => s.apply('a', { ...add('bad-book'), book: { ...add().book, ownership: ['owned', 'unowned'] } }), { status: 400 })
+    const changed = s.apply('a', { ...add(), opId: 'ownership-change', revision: 2, book: { ...add().book, ownership: 'unowned' } }).book
+    assert.equal(changed.ownership, 'unowned'); assert.equal(changed.status, 'to-read')
+  } finally { s.close() }
+})
