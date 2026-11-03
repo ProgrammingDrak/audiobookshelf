@@ -18,12 +18,13 @@ export function configuration(env = process.env, inContainer = existsSync('/.doc
   if (!['http:', 'https:'].includes(origin.protocol) || origin.username || origin.password || origin.pathname !== '/' || origin.search || origin.hash) throw new Error('PUBLIC_ORIGIN must be an HTTP(S) origin')
   const host = env.HOST || '127.0.0.1'
   if (host !== '127.0.0.1' && host !== '::1' && !(host === '0.0.0.0' && env.CONTAINER_MODE === '1' && inContainer)) throw new Error('Gateway must bind to loopback outside an explicitly configured Docker container')
+  if (env.READING_DB && env.READING_DATABASE_URL) throw new Error('Choose exactly one reading storage backend')
   const port = Number(env.PORT || 13379)
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('Invalid PORT')
   let revision = 'local', clientVersion
   try { const metadata = JSON.parse(readFileSync(path.join(here, '../release.json'), 'utf8')); revision = metadata.revision; clientVersion = metadata.clientVersion } catch {}
   if (!clientVersion) try { clientVersion = JSON.parse(readFileSync(path.join(here, '../client/package.json'), 'utf8')).version } catch {}
-  return { upstream, origin, host, port, readingDb: env.READING_DB || null, dist: path.resolve(env.CLIENT_DIST || path.join(here, '../client/dist')), revision: env.BUILD_REVISION || revision, clientVersion }
+  return { upstream, origin, host, port, readingDb: env.READING_DB || null, readingDatabaseUrl: env.READING_DATABASE_URL || null, dist: path.resolve(env.CLIENT_DIST || path.join(here, '../client/dist')), revision: env.BUILD_REVISION || revision, clientVersion }
 }
 
 function cleanHeaders(input) {

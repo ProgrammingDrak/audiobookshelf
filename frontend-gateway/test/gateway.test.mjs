@@ -196,7 +196,7 @@ test('versioned gateway starts through the current-release symlink used by host 
   const revision = 'c'.repeat(40)
   const release = path.join(root, 'releases', revision)
   await mkdir(path.join(release, 'frontend-gateway'), { recursive: true })
-  for (const name of ['server.mjs', 'reading-store.mjs']) await cp(new URL('../' + name, import.meta.url), path.join(release, 'frontend-gateway', name))
+  for (const name of ['server.mjs', 'reading-store.mjs', 'reading-postgres.mjs']) await cp(new URL('../' + name, import.meta.url), path.join(release, 'frontend-gateway', name))
   await writeFile(path.join(release, 'release.json'), JSON.stringify({ revision, clientVersion: '2.37.1' }))
   await symlink(`releases/${revision}`, path.join(root, 'current'))
   const reservation = http.createServer(); reservation.listen(0, '127.0.0.1'); await once(reservation, 'listening')

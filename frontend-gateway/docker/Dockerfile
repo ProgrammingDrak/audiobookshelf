@@ -1,5 +1,9 @@
 # Build context is the validated frontend-gateway/out/bundle directory, never the host workspace.
 FROM node:24-alpine@sha256:ebfe2f90462722a7a4de65e91990e97fe0d401c70e0e762c5b53302f905ec1c1
+# Install locked runtime dependencies before removing package managers.
+WORKDIR /deps
+COPY frontend-gateway/package.json frontend-gateway/package-lock.json ./
+RUN npm ci --omit=dev --ignore-scripts && rm -rf /root/.npm
 ARG BUILD_REVISION
 LABEL org.opencontainers.image.title="Audiobookshelf separate frontend" \
       org.opencontainers.image.source="https://github.com/ProgrammingDrak/audiobookshelf" \
@@ -8,7 +12,8 @@ LABEL org.opencontainers.image.title="Audiobookshelf separate frontend" \
 WORKDIR /app
 RUN apk add --no-cache zlib=1.3.2-r1
 COPY --chown=node:node client/dist ./client/dist
-COPY --chown=node:node frontend-gateway/server.mjs frontend-gateway/reading-store.mjs frontend-gateway/package.json ./frontend-gateway/
+COPY --chown=node:node frontend-gateway/server.mjs frontend-gateway/reading-store.mjs frontend-gateway/reading-postgres.mjs frontend-gateway/package.json ./frontend-gateway/
+RUN mv /deps/node_modules /app/frontend-gateway/node_modules && rm -rf /deps
 COPY --chown=node:node frontend-gateway/docker/healthcheck.mjs ./frontend-gateway/docker/healthcheck.mjs
 COPY --chown=node:node LICENSE source.tar.gz release.json ./
 RUN node -e "const fs=require('fs');const m=JSON.parse(fs.readFileSync('release.json'));if(m.revision!==process.argv[1]||!/^[a-f0-9]{40}$/.test(m.revision)||!m.clientVersion)process.exit(1)" "$BUILD_REVISION"

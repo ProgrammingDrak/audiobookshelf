@@ -55,10 +55,11 @@ export function openReadingStore(filename) {
 
 export function readingHandler(config) {
   let store
+  const open = async () => { if (!store) { const pending = config.readingDatabaseUrl ? import('./reading-postgres.mjs').then(m => m.openPostgresReadingStore(config.readingDatabaseUrl)) : Promise.resolve(openReadingStore(config.readingDb)); store = pending; pending.catch(() => { if (store === pending) store = null }); } return store }
   return async (req, res) => {
     const reply = (status, body) => { res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'private, no-store' }); res.end(JSON.stringify(body)) }
     try {
-      if (!config.readingDb) return reply(503, { error: 'The host has not configured persistent reading-list storage yet.' })
+      if (!config.readingDb && !config.readingDatabaseUrl) return reply(503, { error: 'The host has not configured persistent reading-list storage yet.' })
       if (!req.headers.authorization?.startsWith('Bearer ')) return reply(401, { error: 'Sign in to QuietShelf.' })
       const response = await fetch(config.upstream.origin + config.upstream.pathname.replace(/\/$/, '') + '/api/me', { headers: { authorization: req.headers.authorization }, redirect: 'error', signal: AbortSignal.timeout(5000) })
       if (!response.ok) return reply(response.status === 401 || response.status === 403 ? 401 : 502, { error: 'Could not verify your library account.' })
@@ -66,8 +67,8 @@ export function readingHandler(config) {
       if (typeof user.id !== 'string' || !user.id || user.isActive === false) return reply(401, { error: 'Sign in to QuietShelf.' })
       // Never accept a user or backend identity from the request body.
       const owner = createHash('sha256').update(config.upstream.href + '\0' + user.id).digest('hex')
-      store ||= openReadingStore(config.readingDb)
-      if (req.method === 'GET') return reply(200, { books: store.list(owner), userId: user.id })
+      const activeStore = await open()
+      if (req.method === 'GET') return reply(200, { books: await activeStore.list(owner), userId: user.id })
       if (req.method !== 'POST') return reply(405, { error: 'Method not allowed' })
       if (!req.headers['content-type']?.startsWith('application/json')) return reply(415, { error: 'JSON required' })
       const chunks = []; let bytes = 0
@@ -75,7 +76,7 @@ export function readingHandler(config) {
       const op = JSON.parse(Buffer.concat(chunks).toString('utf8'))
       // An identity assertion prevents an old tab's outbox reaching a new login.
       if (op.userId !== user.id) return reply(409, { error: 'Account changed. Your pending edits remain on this device.' })
-      return reply(200, store.apply(owner, op))
+      return reply(200, await activeStore.apply(owner, op))
     } catch (error) { return reply(error.status || (error instanceof SyntaxError ? 400 : 503), { error: error.status ? error.message : 'Reading list unavailable; your pending edits are kept.' }) }
   }
 }

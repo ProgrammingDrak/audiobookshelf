@@ -97,3 +97,35 @@ account as part of the local implementation.
 Ownership is explicit (`owned`, `unowned`, or `unspecified`), independent of reading status and library linkage. Legacy entries default to unspecified; updates from older clients preserve ownership. Duplicate adds return the existing entry without overwriting its status or ownership.
 
 The web download flow delegates to browser file downloads and provides no verifiable current-device inventory. Therefore download labels remain **not verified** and the Downloaded filter has no claimed matches. Server podcast download statuses, stale metadata, and files on other devices are never treated as local/offline availability. This change adds no downloader or offline playback claim.
+
+
+### Optional PostgreSQL storage
+
+Keep the existing Jesse ABS/Tailscale topology when available. No media migration
+is needed for this adapter. SQLite remains supported for a small persistent
+reading database on the gateway host. PostgreSQL is optional, not a requirement.
+
+Set only `READING_DATABASE_URL` for a PostgreSQL-backed shelf; never also set
+`READING_DB`. The URL is server-only, without query options. Remote connections
+require verified TLS; only loopback disposable tests use plain PostgreSQL.
+No credentials or schema/grants are created automatically. Review/apply
+`migrations/001-reading-postgres.sql` against the approved database separately.
+Use a private schema and an explicitly scoped backend role with reviewed RLS
+policies. This schema must not be exposed through Supabase's Data API. ABS user
+verification remains mandatory; Supabase Auth identities are not substituted.
+Without schema/permissions/connectivity the API returns503 and retains the outbox.
+
+`reading-migrate.mjs` exports `importReadingSqlite(pool, filename, options)` for
+explicit offline operator use. Stop all shelf writes, take a SQLite backup, and
+set `writesStopped: true`, `sourceUpstream` and `targetUpstream` to the exact same
+verified ABS URL. The importer opens source read-only, validates integrity and
+metadata keys, locks empty target tables, preserves owner namespaces, revisions,
+tombstones and operation receipts, checks counts and commits atomically. It
+refuses nonempty targets and backend-namespace changes. Retain the source backup
+until account-isolation, retry and restore smoke tests pass. It never changes
+ABS media, users, playback progress or the original source database.
+
+The legacy Docker host updater still forbids additional database env/volume
+configuration. Do not use it unchanged for persistent SQLite or PostgreSQL
+rollout. Deployment must use a separately reviewed configuration for the actual
+existing host; no new ingress, credentials or infrastructure is implied.
