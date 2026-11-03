@@ -70,9 +70,9 @@ export function readingHandler(config) {
       if (req.method === 'GET') return reply(200, { books: store.list(owner), userId: user.id })
       if (req.method !== 'POST') return reply(405, { error: 'Method not allowed' })
       if (!req.headers['content-type']?.startsWith('application/json')) return reply(415, { error: 'JSON required' })
-      let data = ''
-      for await (const chunk of req) { data += chunk; if (Buffer.byteLength(data) > 16000) return reply(413, { error: 'Book details are too large' }) }
-      const op = JSON.parse(data)
+      const chunks = []; let bytes = 0
+      for await (const chunk of req) { const buffer = Buffer.from(chunk); bytes += buffer.length; if (bytes > 16000) return reply(413, { error: 'Book details are too large' }); chunks.push(buffer) }
+      const op = JSON.parse(Buffer.concat(chunks).toString('utf8'))
       // An identity assertion prevents an old tab's outbox reaching a new login.
       if (op.userId !== user.id) return reply(409, { error: 'Account changed. Your pending edits remain on this device.' })
       return reply(200, store.apply(owner, op))

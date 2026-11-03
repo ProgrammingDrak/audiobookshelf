@@ -78,3 +78,18 @@ test('ownership is explicit, independent, preserved by older edits and duplicate
     assert.equal(changed.ownership, 'unowned'); assert.equal(changed.status, 'to-read')
   } finally { s.close() }
 })
+
+
+test('split multibyte request chunks preserve book metadata', async () => {
+  const { readingHandler } = await import('../reading-store.mjs')
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = async () => ({ ok: true, json: async () => ({ id: 'alice' }) })
+  try {
+    const handler = readingHandler({ readingDb: ':memory:', upstream: new URL('http://fixture.invalid') })
+    const body = Buffer.from(JSON.stringify({ ...add(), userId: 'alice', book: { title: 'Café', author: '陳', notes: '📚', status: 'to-read' } }))
+    const req = { method: 'POST', headers: { authorization: 'Bearer fixture', 'content-type': 'application/json' }, async *[Symbol.asyncIterator]() { for (const byte of body) yield Buffer.from([byte]) } }
+    let code, result
+    await handler(req, { writeHead(status) { code = status }, end(raw) { result = JSON.parse(raw) } })
+    assert.equal(code, 200); assert.equal(result.book.title, 'Café'); assert.equal(result.book.author, '陳'); assert.equal(result.book.notes, '📚')
+  } finally { globalThis.fetch = originalFetch }
+})
