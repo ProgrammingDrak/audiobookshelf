@@ -12,6 +12,8 @@
         <div v-show="homePage" class="h-full w-0.5 bg-yellow-400 absolute top-0 left-0" />
       </nuxt-link>
 
+      <nuxt-link to="/reading" class="w-full h-20 flex flex-col items-center justify-center text-white border-b border-primary/70 hover:bg-primary" aria-label="Reading shelf"><span class="material-symbols text-2xl">auto_stories</span><p class="pt-1 text-center text-sm">Reading</p></nuxt-link>
+
       <nuxt-link v-if="isPodcastLibrary" :to="`/library/${currentLibraryId}/podcast/latest`" class="w-full h-20 flex flex-col items-center justify-center text-white border-b border-primary/70 hover:bg-primary cursor-pointer relative" :class="isPodcastLatestPage ? 'bg-primary/80' : 'bg-bg/60'">
         <span class="material-symbols text-2xl">&#xe241;</span>
 

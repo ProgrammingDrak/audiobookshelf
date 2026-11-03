@@ -42,6 +42,8 @@
           </ui-tooltip>
         </nuxt-link>
 
+        <nuxt-link to="/reading" aria-label="Reading shelf" class="flex items-center justify-center w-11 h-11 md:hidden"><span class="material-symbols">auto_stories</span></nuxt-link>
+
         <nuxt-link to="/account" class="relative w-9 h-9 md:w-32 bg-fg border border-gray-500 rounded-sm shadow-xs ml-1.5 sm:ml-3 md:ml-5 md:pl-3 md:pr-10 py-2 text-left sm:text-sm cursor-pointer hover:bg-bg/40" aria-haspopup="listbox" aria-expanded="true">
           <span class="items-center hidden md:flex">
             <span class="block truncate">{{ username }}</span>

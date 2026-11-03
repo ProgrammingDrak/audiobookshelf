@@ -59,6 +59,17 @@ test('fixed-target guard rejects foreign origins, hosts, paths, and setup', asyn
   assert.equal((await request(base + '/escape.txt')).status, 403)
 })
 
+test('cross-site book return allows only safe document navigation', async t => {
+  const { request, backend } = await fixture(t)
+  const headers = { origin: 'https://daily-command-center.example', 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' }
+  assert.match((await request(base + '/reading?book=book-one', { headers })).text, /synthetic-shell/)
+  assert.match((await request(base + '/login', { headers })).text, /synthetic-shell/)
+  assert.equal((await request(base + '/api/quietshelf/reading', { headers })).status, 400)
+  assert.equal((await request(base + '/login', { headers, method: 'POST', body: {} })).status, 400)
+  assert.equal((await request(base + '/reading', { headers: { ...headers, 'sec-fetch-dest': 'iframe' } })).status, 400)
+  assert.equal(backend.requests.length, 0)
+})
+
 test('login, refresh rotation, secure host-only cookies, redirects, and logout', async t => {
   const { request, backend } = await fixture(t, base)
   const bad = await request(base + '/login', { method: 'POST', body: { username: 'demo', password: 'bad' } })
@@ -185,7 +196,7 @@ test('versioned gateway starts through the current-release symlink used by host 
   const revision = 'c'.repeat(40)
   const release = path.join(root, 'releases', revision)
   await mkdir(path.join(release, 'frontend-gateway'), { recursive: true })
-  await cp(new URL('../server.mjs', import.meta.url), path.join(release, 'frontend-gateway/server.mjs'))
+  for (const name of ['server.mjs', 'reading-store.mjs', 'reading-postgres.mjs']) await cp(new URL('../' + name, import.meta.url), path.join(release, 'frontend-gateway', name))
   await writeFile(path.join(release, 'release.json'), JSON.stringify({ revision, clientVersion: '2.37.1' }))
   await symlink(`releases/${revision}`, path.join(root, 'current'))
   const reservation = http.createServer(); reservation.listen(0, '127.0.0.1'); await once(reservation, 'listening')

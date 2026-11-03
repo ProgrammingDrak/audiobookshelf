@@ -63,3 +63,69 @@ Gateway tests execute the real stock Axios/Vuex refresh code, socket reauthentic
 Upstream Vue/Nuxt dependencies remain a faithful baseline; legacy/EOL packages and existing audit findings were not silently upgraded. The runtime gateway adds no npm dependency, and its container removes npm/Yarn/Corepack. Runtime images use a verified pinned official Node 24 multi-architecture base. Actual image scan results and local/CI run evidence are recorded separately; do not infer live compatibility from mock tests.
 
 Sources: [ABS source baseline](https://github.com/ProgrammingDrak/audiobookshelf/tree/743d9152208507a1dbf7c95c94290071338f44bd), [Docker Compose services](https://docs.docker.com/reference/compose-file/services/), [Docker image loading](https://docs.docker.com/reference/cli/docker/image/load/), [Tailscale Serve](https://tailscale.com/docs/reference/tailscale-cli/serve), [GitHub standard runner platforms](https://docs.github.com/en/actions/reference/runners/github-hosted-runners).
+
+## Private reading shelf
+
+The separate gateway owns reading-list metadata; it never modifies ABS books,
+users or playback progress. Set `READING_DB` to an absolute SQLite filename on
+persistent storage owned by the gateway user (for example `/data/reading.sqlite`).
+Mount that dedicated directory read/write while leaving the rest of the container
+read-only. Back up the SQLite database using SQLite's backup API before upgrades.
+No ABS library mount is needed. Without this setting the API returns 503 and the
+UI keeps local pending edits; it never reports a remote save.
+
+Every reading API call verifies the Bearer token with the fixed backend's `/api/me`.
+Records and operation receipts are scoped to backend URL plus authenticated user
+ID. A client account assertion rejects old-tab writes after switching accounts.
+SQLite transactions serialize duplicate adds, retries and revision checks. Removed
+books are tombstones retained indefinitely and can be restored; no automatic purge.
+Concurrent edits to one book are rejected, with the local draft retained for review.
+Local data is namespaced by origin and account. This page uses the existing app shell;
+a completely cold offline launch is not promised by the current shell.
+
+Only an explicit **Plan reading time** action sends title/author, book link, selected
+minutes and an idempotency key to DCC in the URL fragment. No credentials or notes
+travel. DCC requires its own login and Save action. Session completion does not
+mark the book finished or change ABS playback progress.
+
+For the approved two-book account seed, run `seed-reading.mjs <gateway-origin>
+<verified-ABS-user-id>` with an existing `QUIETSHELF_ACCESS_TOKEN` supplied only
+through the environment. It verifies the account before writing, uses stable
+operation IDs, and reads back both titles. This has not been run against a real
+account as part of the local implementation.
+
+Ownership is explicit (`owned`, `unowned`, or `unspecified`), independent of reading status and library linkage. Legacy entries default to unspecified; updates from older clients preserve ownership. Duplicate adds return the existing entry without overwriting its status or ownership.
+
+The web download flow delegates to browser file downloads and provides no verifiable current-device inventory. Therefore download labels remain **not verified** and the Downloaded filter has no claimed matches. Server podcast download statuses, stale metadata, and files on other devices are never treated as local/offline availability. This change adds no downloader or offline playback claim.
+
+
+### Optional PostgreSQL storage
+
+Keep the existing Jesse ABS/Tailscale topology when available. No media migration
+is needed for this adapter. SQLite remains supported for a small persistent
+reading database on the gateway host. PostgreSQL is optional, not a requirement.
+
+Set only `READING_DATABASE_URL` for a PostgreSQL-backed shelf; never also set
+`READING_DB`. The URL is server-only, without query options. Remote connections
+require verified TLS; only loopback disposable tests use plain PostgreSQL.
+No credentials or schema/grants are created automatically. Review/apply
+`migrations/001-reading-postgres.sql` against the approved database separately.
+Use a private schema and an explicitly scoped backend role with reviewed RLS
+policies. This schema must not be exposed through Supabase's Data API. ABS user
+verification remains mandatory; Supabase Auth identities are not substituted.
+Without schema/permissions/connectivity the API returns503 and retains the outbox.
+
+`reading-migrate.mjs` exports `importReadingSqlite(pool, filename, options)` for
+explicit offline operator use. Stop all shelf writes, take a SQLite backup, and
+set `writesStopped: true`, `sourceUpstream` and `targetUpstream` to the exact same
+verified ABS URL. The importer opens source read-only, validates integrity and
+metadata keys, locks empty target tables, preserves owner namespaces, revisions,
+tombstones and operation receipts, checks counts and commits atomically. It
+refuses nonempty targets and backend-namespace changes. Retain the source backup
+until account-isolation, retry and restore smoke tests pass. It never changes
+ABS media, users, playback progress or the original source database.
+
+The legacy Docker host updater still forbids additional database env/volume
+configuration. Do not use it unchanged for persistent SQLite or PostgreSQL
+rollout. Deployment must use a separately reviewed configuration for the actual
+existing host; no new ingress, credentials or infrastructure is implied.
